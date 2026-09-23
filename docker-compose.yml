@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: uptime
+      POSTGRES_PASSWORD: uptime
+      POSTGRES_DB: uptime
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptime -d uptime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: ./app
+    environment:
+      DATABASE_URL: postgresql+psycopg://uptime:uptime@postgres:5432/uptime
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      CHECK_INTERVAL_SECONDS: 30
+    ports:
+      - "8080:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./app
+    command: ["python", "-m", "uptime_ops.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://uptime:uptime@postgres:5432/uptime
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      CHECK_INTERVAL_SECONDS: 30
+      FAILURE_THRESHOLD: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
