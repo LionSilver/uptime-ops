@@ -1,0 +1,26 @@
+name: destroy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: terraform destroy
+        working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          TF_VAR_image: ghcr.io/${{ github.repository }}:destroy-noop
+          TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          terraform init
+          terraform destroy -auto-approve
