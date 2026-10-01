@@ -1,0 +1,55 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (git SHA). Leave empty to use the latest commit on main."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: image
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.sha }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository }}:$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        env:
+          TF_VAR_image: ${{ steps.image.outputs.image }}
+        run: terraform apply -auto-approve
+
+      - name: Print outputs
+        run: |
+          echo "### Deploy outputs" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image:** \`${{ steps.image.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **ALB URL:** $(terraform output -raw alb_url)" >> "$GITHUB_STEP_SUMMARY"
