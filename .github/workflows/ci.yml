@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   test:
@@ -30,8 +31,30 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set image name
+        id: meta
+        run: |
+          echo "image=ghcr.io/${{ github.repository }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "image_latest=ghcr.io/${{ github.repository }}:latest" >> "$GITHUB_OUTPUT"
+
       - name: Build image (immutable tag)
-        run: docker build -t uptime-ops:${{ github.sha }} ./app
+        run: docker build -t "${{ steps.meta.outputs.image }}" ./app
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push "${{ steps.meta.outputs.image }}"
+          docker tag "${{ steps.meta.outputs.image }}" "${{ steps.meta.outputs.image_latest }}"
+          docker push "${{ steps.meta.outputs.image_latest }}"
 
   terraform:
     runs-on: ubuntu-latest
