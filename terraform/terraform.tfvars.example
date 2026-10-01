@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored.
+
+aws_region = "us-east-1"
+project    = "uptime-ops"
+environment = "lab"
+
+# Full image reference. Prefer immutable SHA tags, never :latest.
+# Example after pushing from CI:
+#   image = "ghcr.io/lionsilver/uptime-ops:abc123def456"
+image = "ghcr.io/OWNER/uptime-ops:SHA"
+
+# Optional. Leave empty to disable Discord alerts.
+# discord_webhook_url = "https://discord.com/api/webhooks/..."
